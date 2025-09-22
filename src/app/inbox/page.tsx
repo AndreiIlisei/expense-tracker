@@ -18,7 +18,7 @@ export default function InboxPage() {
   useEffect(() => {
     fetch('/api/receipts/fetchAllReceipts')
       .then((r) => r.json())
-      .then(setReceipts);
+      .then((data) => setReceipts(data.items || []));
   }, []);
 
   const save = async (id: number, updates: Partial<Receipt>) => {
