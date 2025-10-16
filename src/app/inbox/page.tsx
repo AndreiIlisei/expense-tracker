@@ -23,7 +23,7 @@ export default function InboxPage() {
 
   const save = async (id: number, updates: Partial<Receipt>) => {
     setSaving(id);
-    const res = await fetch(`/api/receipts/update/${id}`, {
+    const res = await fetch(`/api/receipts/${id}/update`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(updates),
@@ -39,6 +39,7 @@ export default function InboxPage() {
       <table className='w-full border text-sm'>
         <thead className='bg-gray-100'>
           <tr>
+            <th className='p-2 border'>Image</th>
             <th className='p-2 border'>ID</th>
             <th className='p-2 border'>Merchant</th>
             <th className='p-2 border'>Date</th>
@@ -46,6 +47,7 @@ export default function InboxPage() {
             <th className='p-2 border'>VAT (DKK)</th>
             <th className='p-2 border'>Status</th>
             <th className='p-2 border'>Action</th>
+            <th className='p-2 border'>Delete</th>
           </tr>
         </thead>
         <tbody>
@@ -152,6 +154,21 @@ export default function InboxPage() {
                   disabled={saving === r.id}
                 >
                   {saving === r.id ? 'Saving...' : 'Save'}
+                </button>
+              </td>
+
+              <td className='p-2 border'>
+                <button
+                  onClick={async () => {
+                    if (!confirm('Delete this receipt?')) return;
+                    await fetch(`/api/receipts/${r.id}/delete`, {
+                      method: 'DELETE',
+                    });
+                    // then refresh list
+                  }}
+                  className='rounded border px-2 py-1 text-sm hover:bg-gray-50'
+                >
+                  🗑 Delete
                 </button>
               </td>
             </tr>

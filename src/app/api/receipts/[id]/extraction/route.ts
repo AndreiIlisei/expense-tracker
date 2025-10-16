@@ -69,7 +69,7 @@ export async function POST(
       .update(schema.receipts)
       .set({
         merchantText: merchantText ?? receipt.merchantText ?? null,
-        date: parsedDate ?? receipt.date ?? null,
+        date: parsedDate ? parsedDate : null,
         totalMinor: totalMinor ?? receipt.totalMinor ?? null,
         vatMinor: vatMinor ?? receipt.vatMinor ?? null,
         ocrRawJson: ocr as any,

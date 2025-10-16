@@ -15,6 +15,6 @@ export const receipts = pgTable('receipts', {
   vatMinor: integer('vat_minor'),
   status: text('status').default('uploaded'), // uploaded | parsed | reviewed
   ocrRawJson: jsonb('ocr_raw_json'), // keep raw OCR results for debugging
-  date: timestamp('date').defaultNow(),
+  date: timestamp('date'),
   createdAt: timestamp('created_at').defaultNow(),
 });

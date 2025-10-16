@@ -54,17 +54,117 @@ function parseDateFlexible(s?: string | null): Date | null {
     : new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
 }
 
-function parseDkAmount(s?: string | null): number | null {
+function parseAmountFlexible(v?: unknown): number | null {
+  if (v === null || v === undefined) return null;
+
+  // If Excel already gave us a number
+  if (typeof v === 'number' && Number.isFinite(v)) {
+    return Math.round(v * 100);
+  }
+
+  // Otherwise parse string
+  let s = String(v).trim();
   if (!s) return null;
-  const t = s.trim();
-  if (!t) return null;
-  // handle both "1.234,56" and "-113.35" or "-113,35"
-  const normalized = t.replace(/\./g, '').replace(',', '.');
-  const n = Number(normalized);
-  return Number.isFinite(n) ? Math.round(n * 100) : null;
+
+  // Normalize unicode minus and spaces
+  s = s
+    .replace(/\u2212/g, '-') // unicode minus → hyphen
+    .replace(/\u00A0/g, '') // NBSP
+    .replace(/\s+/g, ''); // all spaces
+
+  const hasComma = s.includes(',');
+  const hasDot = s.includes('.');
+
+  if (hasComma && hasDot) {
+    // Keep the last separator as decimal, drop the other as thousands
+    const lastComma = s.lastIndexOf(',');
+    const lastDot = s.lastIndexOf('.');
+    const decSep = lastComma > lastDot ? ',' : '.';
+    const grpSep = decSep === ',' ? '.' : ',';
+    s = s.split(grpSep).join(''); // remove thousands sep
+    s = s.replace(decSep, '.'); // unify decimal
+  } else if (hasComma) {
+    // "1.234,56" or "80,35"
+    s = s.split('.').join(''); // remove thousands dots if any
+    s = s.replace(',', '.'); // decimal is comma
+  } else if (hasDot) {
+    // "80.35" or "1,234.56" (remove commas if present)
+    s = s.split(',').join('');
+  }
+  const n = Number(s);
+  if (!Number.isFinite(n)) return null;
+  return Math.round(n * 100);
 }
 
-/** Drizzle duplicate check: same date + amount + description */
+const MS_PER_DAY = 86_400_000;
+
+// Excel serial → UTC Date (Excel epoch 1899-12-30; handles leap bug implicitly)
+function excelSerialToUTCDate(n: number): Date {
+  // Some banks export serials as whole numbers (days) or with time fractions.
+  const epoch = Date.UTC(1899, 11, 30);
+  return new Date(epoch + n * MS_PER_DAY);
+}
+
+function toUTCDateYMD(d: Date) {
+  return new Date(
+    Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate())
+  );
+}
+
+// Accepts Date | number (Excel serial) | string
+function parseDateAny(v: unknown): Date | null {
+  if (v == null || v === '') return null;
+
+  if (v instanceof Date && !isNaN(v.getTime())) {
+    return toUTCDateYMD(v);
+  }
+
+  if (typeof v === 'number' && isFinite(v)) {
+    // Heuristic: Excel serials are typically > 20_000
+    if (v > 20000 && v < 80000) {
+      return toUTCDateYMD(excelSerialToUTCDate(v));
+    }
+    // If someone exports a unix timestamp (seconds/ms) — optional support:
+    if (v > 1e12) return toUTCDateYMD(new Date(v)); // ms
+    if (v > 1e9) return toUTCDateYMD(new Date(v * 1000)); // seconds
+  }
+
+  if (typeof v === 'string') {
+    const s = v.trim();
+
+    // yyyy-mm-dd
+    let m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+    if (m) return new Date(Date.UTC(+m[1], +m[2] - 1, +m[3]));
+
+    // dd.mm.yyyy or dd/mm/yy(yy)
+    m = s.match(/^(\d{1,2})[./](\d{1,2})[./](\d{2,4})$/);
+    if (m) {
+      const d = +m[1],
+        mo = +m[2];
+      let y = +m[3];
+      if (y < 100) y += y < 50 ? 2000 : 1900; // 00–49 => 2000-2049, 50–99 => 1950-1999
+      return new Date(Date.UTC(y, mo - 1, d));
+    }
+
+    // m/d/yy(yy)
+    m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/);
+    if (m) {
+      const mo = +m[1],
+        d = +m[2];
+      let y = +m[3];
+      if (y < 100) y += y < 50 ? 2000 : 1900;
+      return new Date(Date.UTC(y, mo - 1, d));
+    }
+
+    // Last resort: Date.parse
+    const d2 = new Date(s);
+    if (!isNaN(d2.getTime())) return toUTCDateYMD(d2);
+  }
+
+  return null;
+}
+
+// Drizzle duplicate check: same date + amount + description
 async function existsDuplicate(
   date: Date,
   amountMinor: number,
@@ -100,10 +200,16 @@ export async function POST(req: Request) {
     // Read into records (array of objects keyed by headers)
     let records: Array<Record<string, any>> = [];
     if (isXlsx) {
-      const wb = XLSX.read(buf, { type: 'buffer' });
+      // AFTER
+      const wb = XLSX.read(buf, {
+        type: 'buffer',
+        cellDates: true, // return Date objects when cell type is date
+        cellNF: false,
+        raw: true, // keep raw values (Date | number | string)
+      });
       const ws = wb.Sheets[wb.SheetNames[0]];
       records = XLSX.utils.sheet_to_json(ws, {
-        raw: false,
+        raw: true,
         defval: '',
       }) as any[];
     } else {
@@ -190,9 +296,9 @@ export async function POST(req: Request) {
         const typeRaw = get(r, EN.type); // may be "Reserveret"
         desc = normDesc(get(r, EN.desc));
 
-        date = parseDateFlexible(String(dateRaw || ''));
+        date = parseDateAny(String(dateRaw || ''));
         // Amount is already signed; accept both dot/comma
-        amountMinor = parseDkAmount(String(amtRaw || ''));
+        amountMinor = parseAmountFlexible(String(amtRaw || ''));
         if (/reserveret/i.test(String(typeRaw))) status = 'pending';
       }
 
@@ -202,9 +308,9 @@ export async function POST(req: Request) {
         const outRaw = get(r, DK.out);
         desc = normDesc(get(r, DK.desc));
 
-        date = parseDateFlexible(String(dateRaw || ''));
-        const inMinor = parseDkAmount(String(inRaw || ''));
-        const outMinor = parseDkAmount(String(outRaw || ''));
+        date = parseDateAny(String(dateRaw || ''));
+        const inMinor = parseAmountFlexible(String(inRaw || ''));
+        const outMinor = parseAmountFlexible(String(outRaw || ''));
         amountMinor =
           inMinor != null ? inMinor : outMinor != null ? -outMinor : null;
       }

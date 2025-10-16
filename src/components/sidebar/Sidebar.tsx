@@ -5,12 +5,13 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
 const links = [
-  { href: '/dashboard', label: 'Dashboard' },
+  // { href: '/dashboard', label: 'Dashboard' },
+  { href: '/transactions/seeTransactions', label: 'Transactions' },
   { href: '/inbox', label: 'Receipts' },
+  // { href: '/transactions/machedReceipts', label: 'Matches' },
+  { href: '/transactions/importTransactions', label: 'Upload Transactions' },
   { href: '/uploadReceipts', label: 'Upload Receipts' },
-  { href: '/transactions/seeTransactions', label: 'See Transactions' },
-  { href: '/transactions/importTransactions', label: 'Import Transactions' },
-  { href: '/projectInfo', label: 'Project Info' },
+  // { href: '/projectInfo', label: 'Project Info' },
 ];
 
 export default function Sidebar({

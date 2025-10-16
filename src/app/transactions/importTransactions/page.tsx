@@ -54,7 +54,7 @@ export default function ImportTransactionsPage() {
           >
             {pending ? 'Importing...' : 'Import CSV'}
           </button>
-          <a href='/seeTransactions' className='text-sm underline'>
+          <a href='/transactions/seeTransactions' className='text-sm underline'>
             View transactions
           </a>
         </div>

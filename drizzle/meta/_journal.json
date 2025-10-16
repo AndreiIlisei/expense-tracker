@@ -15,6 +15,20 @@
       "when": 1757527026822,
       "tag": "0001_slow_puma",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1758719104681,
+      "tag": "0002_fresh_impossible_man",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1760613129795,
+      "tag": "0003_living_blink",
+      "breakpoints": true
     }
   ]
 }

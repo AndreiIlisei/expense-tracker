@@ -1,9 +1,10 @@
-import { pgTable, serial, integer, text, timestamp } from 'drizzle-orm/pg-core';
+import { integer, pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core';
 
 export const transactions = pgTable('transactions', {
   id: serial('id').primaryKey(),
   accountId: integer('account_id'),
-  date: timestamp('date'), // when it posted
+  receiptId: integer('receipt_id'), // <— link to receipts.id (v1: no FK constraint needed)
+  date: timestamp('date'),
   amountMinor: integer('amount_minor'), // cents; negative for debit, positive for credit
   currency: text('currency').default('DKK'),
   rawDescription: text('raw_description'), // bank’s original text

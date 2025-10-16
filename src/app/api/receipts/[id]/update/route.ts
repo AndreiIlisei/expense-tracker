@@ -1,8 +1,9 @@
 export const runtime = 'nodejs';
 
-import { NextResponse } from 'next/server';
-import db, { schema } from '@/database/drizzle';
 import { eq } from 'drizzle-orm';
+import { NextResponse } from 'next/server';
+
+import db, { schema } from '@/database/drizzle';
 
 export async function PATCH(
   req: Request,
